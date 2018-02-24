@@ -14,20 +14,84 @@
 @interface ViewController ()<UITableViewDelegate,UITableViewDataSource>
 @property (weak, nonatomic) IBOutlet UITableView *tableview;
 @property(nonatomic,strong)NSMutableArray *musicArr;//音乐URl数组
+@property (weak, nonatomic) IBOutlet UISlider *musicSlider;
 
-@property(nonatomic,strong)AVPlayer *musicPlayer;
+//@property(nonatomic,strong)AVPlayer *musicPlayer;
 @end
 
 @implementation ViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    self.automaticallyAdjustsScrollViewInsets = NO;
     self.tableview.dataSource = self;
     self.tableview.delegate = self;
-        
     
-   
+    [[LLMusicPlayerManager sharedInstance] setMusicPlayBackgroundAction];
+    [[LLMusicPlayerManager sharedInstance] setShowMusicInfo];
+    
+    //当前播放的时间监听通知
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(musicTimeAction:)
+                                                 name:MusicTimeInterval
+                                               object:nil];
 }
+#pragma mark - 当前播放时间进度
+-(void)musicTimeAction:(NSNotification*)info{
+    //当前播放进度
+    CGFloat current = CMTimeGetSeconds([[LLMusicPlayerManager sharedInstance].musicPlayer.currentItem currentTime]);
+    //总时长
+    CGFloat total = CMTimeGetSeconds([[LLMusicPlayerManager sharedInstance].musicPlayer.currentItem duration]);
+    NSLog(@"%lf--%lf",current,total);
+    
+    [self.musicSlider setValue:current/total animated:YES];
+    
+    [[LLMusicPlayerManager sharedInstance] updateLockedScreenMusic:@"阿斯顿发文"
+                                                         andSinger:@"演唱歌手"
+                                                      andAlbumName:@"专辑名"
+                                                        andImgName:@""];
+    
+}
+
+- (IBAction)playOrPauseAction:(UIButton *)sender {
+   sender.selected = !sender.selected;
+    if (sender.selected) {
+        NSLog(@"暂停");
+        [[LLMusicPlayerManager sharedInstance] stopPlay];
+    }else{
+        NSLog(@"播放");
+        [[LLMusicPlayerManager sharedInstance] startPlay];
+    }
+}
+
+
+- (IBAction)NextAction {
+    NSLog(@"下一首");
+}
+- (IBAction)UpAction {
+    NSLog(@"上一首");
+}
+//滑动条拖动结束
+- (IBAction)sliderChangeFinishAction:(UISlider *)sender {
+    
+    CGFloat total = CMTimeGetSeconds([[LLMusicPlayerManager sharedInstance].musicPlayer.currentItem duration]);
+    Float64 currentTime = (Float64)(self.musicSlider.value)*total;
+    
+    if (currentTime <= total) {
+        CMTime cmttime = CMTimeMake((int16_t)(currentTime), 1);
+        [[LLMusicPlayerManager sharedInstance].musicPlayer seekToTime:cmttime];
+    }
+    
+}
+//滑动条拖动中
+- (IBAction)musicSliderAction {
+//    CGFloat total = CMTimeGetSeconds([[LLMusicPlayerManager sharedInstance].musicPlayer.currentItem duration]);
+    
+    
+    
+}
+
+
 #pragma mark - 
 -(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section{
     return self.musicArr.count;
@@ -53,9 +117,42 @@
     [[LLMusicPlayerManager sharedInstance] setPlaySongItem:urlStr];
     [[LLMusicPlayerManager sharedInstance] setPlaySong];
     [[LLMusicPlayerManager sharedInstance] startPlay];
+    
+    [[LLMusicPlayerManager sharedInstance] timeObserver];//监听播放时间
 
 }
-
+//远程控制事件监听
+-(void)remoteControlReceivedWithEvent:(UIEvent *)event{
+    switch (event.subtype) {
+        case UIEventSubtypeRemoteControlPlay:
+        case UIEventSubtypeRemoteControlPause:
+        {
+            if ([LLMusicPlayerManager sharedInstance].musicPlayer.currentItem != nil) {
+            
+                if ([LLMusicPlayerManager sharedInstance].musicPlayer.rate) {
+                    [[LLMusicPlayerManager sharedInstance] stopPlay];
+                }else{
+                    [[LLMusicPlayerManager sharedInstance] startPlay];
+                }
+                
+            }
+            
+            break;
+        }
+            case UIEventSubtypeRemoteControlNextTrack://下一首
+        {
+            NSLog(@"下一首");
+            break;
+        }
+        case UIEventSubtypeRemoteControlPreviousTrack://上一首
+        {
+            NSLog(@"上一首");
+            break;
+        }
+        default:
+            break;
+    }
+}
 
 -(NSMutableArray *)musicArr{
     if (!_musicArr) {
@@ -70,15 +167,15 @@
     }
     return _musicArr;
 }
--(AVPlayer *)musicPlayer{
-    if (!_musicPlayer) {
-        _musicPlayer = [[AVPlayer alloc]init];
-        
-        
-        
-    }
-    return _musicPlayer;
-}
+//-(AVPlayer *)musicPlayer{
+//    if (!_musicPlayer) {
+//        _musicPlayer = [[AVPlayer alloc]init];
+//        
+//        
+//        
+//    }
+//    return _musicPlayer;
+//}
 
 - (void)didReceiveMemoryWarning {
     [super didReceiveMemoryWarning];
